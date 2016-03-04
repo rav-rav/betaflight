@@ -281,13 +281,8 @@ void annexCode(void)
             rcCommand[axis] = -rcCommand[axis];
     }
 
-    if (isUsingSticksForArming()) {
-        tmp = constrain(rcData[THROTTLE], masterConfig.rxConfig.mincheck, PWM_RANGE_MAX);
-        tmp = (uint32_t)(tmp - masterConfig.rxConfig.mincheck) * PWM_RANGE_MIN / (PWM_RANGE_MAX - masterConfig.rxConfig.mincheck);
-    } else {
-        tmp = constrain(rcData[THROTTLE], PWM_RANGE_MIN, PWM_RANGE_MAX);
-        tmp = (uint32_t)(tmp - PWM_RANGE_MIN) * PWM_RANGE_MIN / (PWM_RANGE_MAX - PWM_RANGE_MIN);       // [MINCHECK;2000] -> [0;1000]
-    }
+    tmp = constrain(rcData[THROTTLE], masterConfig.rxConfig.mincheck, PWM_RANGE_MAX);
+    tmp = (uint32_t)(tmp - masterConfig.rxConfig.mincheck) * PWM_RANGE_MIN / (PWM_RANGE_MAX - masterConfig.rxConfig.mincheck);
     tmp2 = tmp / 100;
     rcCommand[THROTTLE] = lookupThrottleRC[tmp2] + (tmp - tmp2 * 100) * (lookupThrottleRC[tmp2 + 1] - lookupThrottleRC[tmp2]) / 100;    // [0;1000] -> expo -> [MINTHROTTLE;MAXTHROTTLE]
 
@@ -757,6 +752,17 @@ void taskMotorUpdate(void) {
     }
 }
 
+// Check for oneshot125 protection. With fast looptimes oneshot125 pulse duration gets more near the pid looptime
+bool shouldUpdateMotorsAfterPIDLoop(void) {
+    if (targetPidLooptime > 375 ) {
+        return true;
+    } else if ((masterConfig.use_multiShot || masterConfig.use_oneshot42) && feature(FEATURE_ONESHOT125)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 // Function for loop trigger
 void taskMainPidLoopCheck(void) {
     static uint32_t previousTime;
@@ -777,7 +783,7 @@ void taskMainPidLoopCheck(void) {
             static uint8_t pidUpdateCountdown;
 
             if (runTaskMainSubprocesses) {
-                taskMotorUpdate();
+                if (!shouldUpdateMotorsAfterPIDLoop()) taskMotorUpdate();
                 subTasksMainPidLoop();
                 runTaskMainSubprocesses = false;
             }
@@ -789,6 +795,7 @@ void taskMainPidLoopCheck(void) {
             } else {
                 pidUpdateCountdown = masterConfig.pid_process_denom - 1;
                 taskMainPidLoop();
+                if (shouldUpdateMotorsAfterPIDLoop()) taskMotorUpdate();
                 runTaskMainSubprocesses = true;
             }
 
