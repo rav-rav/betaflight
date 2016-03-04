@@ -791,11 +791,6 @@ void taskMainPidLoopCheck(void) {
     cycleTime = micros() - previousTime;
     previousTime = micros();
 
-#ifdef USE_SERVOS
-    filterServos();
-    writeServos();
-#endif
-
     if (debugMode == DEBUG_CYCLETIME) {
         debug[0] = cycleTime;
         debug[1] = averageSystemLoadPercent;
