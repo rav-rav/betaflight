@@ -58,6 +58,10 @@
 #include "io/ledstrip.h"
 #include "io/flashfs.h"
 #include "io/beeper.h"
+#ifdef USE_SERIAL_1WIRE
+#include "io/serial_1wire.h"
+#endif
+
 #include "io/asyncfatfs/asyncfatfs.h"
 
 #include "rx/rx.h"
@@ -169,6 +173,10 @@ static void cliSdInfo(char *cmdline);
 
 #ifdef BEEPER
 static void cliBeeper(char *cmdline);
+#endif
+
+#ifdef USE_SERIAL_1WIRE
+static void cliUSBLinker(char *cmdline);
 #endif
 
 // buffer
@@ -323,6 +331,9 @@ const clicmd_t cmdTable[] = {
 #ifdef BEEPER
     CLI_COMMAND_DEF("beeper", "turn on/off beeper", "list\r\n"
             "\t<+|->[name]", cliBeeper),
+#endif
+#ifdef USE_SERIAL_1WIRE
+    CLI_COMMAND_DEF("usblinker", "passthrough to SimonK ESC", "<index>", cliUSBLinker),
 #endif
 };
 #define CMD_COUNT (sizeof(cmdTable) / sizeof(clicmd_t))
@@ -2753,6 +2764,26 @@ static void cliVersion(char *cmdline)
         shortGitRevision
     );
 }
+
+#ifdef USE_SERIAL_1WIRE
+void usbLinkerPassthrough(serialPort_t *serialPort, uint8_t escIndex);
+
+static void cliUSBLinker(char *cmdline)
+{
+    if (isEmpty(cmdline)) {
+        cliShowParseError();
+        return;
+    }
+    usb1WireInitialize();
+    uint8_t index = atoi(cmdline);
+    if (index > escCount) {
+        cliShowArgumentRangeError("index", 0, escCount - 1);
+        return;
+    }
+
+    usbLinkerPassthrough(cliPort, index);
+}
+#endif
 
 void cliProcess(void)
 {
