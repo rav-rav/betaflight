@@ -73,6 +73,7 @@ PG_RESET_TEMPLATE(mixerConfig_t, mixerConfig,
     .mixerMode = DEFAULT_MIXER,
     .yaw_motors_reversed = false,
     .crashflip_motor_percent = 0,
+    .mixer_thrust_weight = 0,
 );
 
 PG_REGISTER_ARRAY(motorMixer_t, MAX_SUPPORTED_MOTORS, customMotorMixer, PG_MOTOR_MIXER, 0);
@@ -925,6 +926,29 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs, uint8_t vbatPidCompensa
         }
     } else {
         if (airmodeEnabled || throttle > 0.5f) {  // Only automatically adjust throttle when airmode enabled. Airmode logic is always active on high throttle
+            float throttleWeight = 0.0f;
+            if (mixerConfig()->mixer_thrust_weight != 0) {
+                if (mixerConfig()->mixer_thrust_weight == 101) {
+                    throttleWeight = (0.5f - throttle) * 2;
+                } else {
+                    throttleWeight = mixerConfig()->mixer_thrust_weight * 0.01f;
+                }
+
+
+                // high values will force more acceleration than deceleration and vice versa
+                float center;
+                if (throttleWeight < 0.0f) {
+                    center = ABS(throttleWeight) * motorMixMax;
+                } else {
+                    center = ABS(throttleWeight) * motorMixMin;
+                }
+
+                for (int i = 0; i < motorCount; i++) {
+                    motorMix[i] -= center;
+                }
+                motorMixMax -= center;
+                motorMixMin -= center;
+            }
             throttle = constrainf(throttle, -motorMixMin, 1.0f - motorMixMax);
 #ifdef USE_AIRMODE_LPF
             airmodeThrottleChange = constrainf(unadjustedThrottle, -motorMixMin, 1.0f - motorMixMax) - unadjustedThrottle;
